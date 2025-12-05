@@ -1,6 +1,5 @@
 name: "KNX Sentinel"
 version: "1.1.0"
-slug: "knx_sentinel"
 description: "Advanced KNX Diagnostics and Anomaly Detection Agent"
 arch:
   - aarch64
@@ -50,6 +49,4 @@ schema:
         min: float?
         max: float?
         threshold: float?
-ports:
-  8000/tcp: null
 init: false
