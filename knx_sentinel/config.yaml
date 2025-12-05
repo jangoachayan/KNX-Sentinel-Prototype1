@@ -33,22 +33,22 @@ schema:
   site_id: str
   mode: list(influxdb_cloud|mqtt)
   autodiscovery: bool
-  exclude_entities: [str]
-  influxdb:
-    host: url
-    token: str
-    org: str
-    bucket: str
-  mqtt:
-    broker: str
-    port: int
-    topic_prefix: str
-  anomaly_detection:
-    enabled: bool
-    sensors:
-      - entity_id: str
-        method: list(range|z_score)
-        min: float?
-        max: float?
-        threshold: float?
+  # exclude_entities: [str]
+  # influxdb:
+  #   host: url
+  #   token: str
+  #   org: str
+  #   bucket: str
+  # mqtt:
+  #   broker: str
+  #   port: int
+  #   topic_prefix: str
+  # anomaly_detection:
+  #   enabled: bool
+  #   sensors:
+  #     - entity_id: str
+  #       method: list(range|z_score)
+  #       min: float?
+  #       max: float?
+  #       threshold: float?
 init: false
