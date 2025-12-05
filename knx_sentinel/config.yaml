@@ -48,7 +48,7 @@ schema:
     sensors:
       - entity_id: str
         method: match(range|z_score)
-        min: float
-        max: float
-        threshold: float
+        min?: float
+        max?: float
+        threshold?: float
 init: false
