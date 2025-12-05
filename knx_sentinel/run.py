@@ -17,26 +17,63 @@ logging.basicConfig(
 )
 _LOGGER = logging.getLogger(__name__)
 
+import json
+
+def load_config():
+    """Loads configuration from /data/options.json or env vars."""
+    options_path = "/data/options.json"
+    config = {}
+    
+    if os.path.exists(options_path):
+        try:
+            with open(options_path, "r") as f:
+                options = json.load(f)
+                _LOGGER.info(f"Loaded configuration from {options_path}")
+                
+                # Map options to internal structure
+                config = {
+                    "client_id": options.get("client_id", "default_client"),
+                    "site_id": options.get("site_id", "default_site"),
+                    "mode": options.get("mode", "influxdb_cloud"),
+                    "influxdb": {
+                        "host": options.get("influxdb", {}).get("host"),
+                        "token": options.get("influxdb", {}).get("token"),
+                        "org": options.get("influxdb", {}).get("org"),
+                        "bucket": options.get("influxdb", {}).get("bucket")
+                    },
+                    "mqtt": {
+                        "broker": options.get("mqtt", {}).get("broker"),
+                        "port": options.get("mqtt", {}).get("port", 1883),
+                        "topic_prefix": options.get("mqtt", {}).get("topic_prefix", "knx")
+                    }
+                }
+        except Exception as e:
+            _LOGGER.error(f"Failed to load options.json: {e}")
+            sys.exit(1)
+    else:
+        _LOGGER.info("Using environment variables for configuration")
+        config = {
+            "client_id": os.getenv("CLIENT_ID", "default_client"),
+            "site_id": os.getenv("SITE_ID", "default_site"),
+            "mode": os.getenv("EGRESS_MODE", "influxdb"),
+            "influxdb": {
+                "host": os.getenv("INFLUX_HOST", "http://localhost:8086"),
+                "token": os.getenv("INFLUX_TOKEN", "token"),
+                "org": os.getenv("INFLUX_ORG", "org"),
+                "bucket": os.getenv("INFLUX_BUCKET", "bucket")
+            },
+            "mqtt": {
+                "broker": os.getenv("MQTT_BROKER", "localhost"),
+                "port": int(os.getenv("MQTT_PORT", 1883)),
+                "topic_prefix": os.getenv("MQTT_PREFIX", "knx")
+            }
+        }
+    return config
+
 async def main():
     _LOGGER.info("Starting KNX Sentinel...")
     
-    # Configuration (Mock)
-    config = {
-        "client_id": os.getenv("CLIENT_ID", "default_client"),
-        "site_id": os.getenv("SITE_ID", "default_site"),
-        "mode": os.getenv("EGRESS_MODE", "influxdb"), # influxdb or mqtt
-        "influxdb": {
-            "host": os.getenv("INFLUX_HOST", "http://localhost:8086"),
-            "token": os.getenv("INFLUX_TOKEN", "token"),
-            "org": os.getenv("INFLUX_ORG", "org"),
-            "bucket": os.getenv("INFLUX_BUCKET", "bucket")
-        },
-        "mqtt": {
-            "broker": os.getenv("MQTT_BROKER", "localhost"),
-            "port": int(os.getenv("MQTT_PORT", 1883)),
-            "topic_prefix": os.getenv("MQTT_PREFIX", "knx")
-        }
-    }
+    config = load_config()
     
     # Initialize Egress
     if config["mode"] == "mqtt":
