@@ -1,0 +1,55 @@
+name: "KNX Sentinel"
+version: "1.1.0"
+slug: "knx_sentinel"
+description: "Advanced KNX Diagnostics and Anomaly Detection Agent"
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+map:
+  - "config:rw"
+options:
+  client_id: "customer_001"
+  site_id: "site_nyc_01"
+  mode: "influxdb_cloud"
+  autodiscovery: true
+  exclude_entities: []
+  influxdb:
+    host: "https://us-east-1-1.aws.cloud2.influxdata.com"
+    token: "my-token"
+    org: "my-org"
+    bucket: "knx_metrics"
+  mqtt:
+    broker: "192.168.1.100"
+    port: 1883
+    topic_prefix: "knx-monitor"
+  anomaly_detection:
+    enabled: true
+    sensors: []
+schema:
+  client_id: str
+  site_id: str
+  mode: list(influxdb_cloud|mqtt)
+  autodiscovery: bool
+  exclude_entities: [str]
+  influxdb:
+    host: url
+    token: str
+    org: str
+    bucket: str
+  mqtt:
+    broker: str
+    port: int
+    topic_prefix: str
+  anomaly_detection:
+    enabled: bool
+    sensors:
+      - entity_id: str
+        method: list(range|z_score)
+        min: float?
+        max: float?
+        threshold: float?
+ports:
+  8000/tcp: null
+init: false
