@@ -3,7 +3,10 @@ FROM $BUILD_FROM
 
 # Install requirements for add-on
 COPY requirements.txt /tmp/
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+RUN \
+    apk add --no-cache --virtual .build-deps build-base \
+    && pip3 install --no-cache-dir -r /tmp/requirements.txt \
+    && apk del .build-deps
 
 # Copy data for add-on
 COPY knx_sentinel /app/knx_sentinel
