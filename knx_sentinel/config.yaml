@@ -1,5 +1,5 @@
 name: "KNX Sentinel"
-version: "1.1.0"
+version: "1.1.1"
 description: "Advanced KNX Diagnostics and Anomaly Detection Agent"
 arch:
   - aarch64
@@ -31,7 +31,7 @@ options:
 schema:
   client_id: str
   site_id: str
-  mode: match(influxdb_cloud|mqtt)
+  mode: str
   autodiscovery: bool
   exclude_entities: [str]
   influxdb:
@@ -47,7 +47,7 @@ schema:
     enabled: bool
     sensors:
       - entity_id: str
-        method: match(range|z_score)
+        method: str
         min?: float
         max?: float
         threshold?: float
