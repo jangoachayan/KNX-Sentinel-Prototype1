@@ -1,52 +1,95 @@
-# KNX Sentinel Technical Documentation
+# KNX Sentinel User Manual
 
-## Overview
-KNX Sentinel is designed to provide "Edge Intelligence" for KNX networks. It decouples monitoring from automation logic, ensuring that diagnostic data is preserved even if the automation layer fails.
+Welcome to **KNX Sentinel**, an advanced diagnostics and anomaly detection agent for your KNX smart home.
 
-## Core Components
+## Features
+-   **Bus Load Monitoring**: Tracks telegram traffic in real-time (telegrams/minute).
+-   **Anomaly Detection**: Uses Z-Score statistical analysis to identify outliers in sensor data (e.g., unexpected temperature spikes).
+-   **Diagnostics**: Physics-based validation for sensors (e.g., Solar Elevation vs. Lux).
+-   **Dual-Mode Egress**:
+    -   **InfluxDB**: Push metrics to InfluxDB Cloud or OSS (Serverless support).
+    -   **MQTT**: Publish parsed telegrams and anomalies to your local broker.
+-   **Resilient**: Includes "Dead Man's Switch" monitoring and exponential backoff connection logic.
 
-### 1. Math Kernel (`math_kernel.py`)
-A pure Python implementation of statistical functions, avoiding heavy dependencies like `numpy` or `pandas`.
-- **Z-Score**: $Z = (x - \mu) / \sigma$
-- **Linear Regression**: Least Squares Method for slope calculation.
-- **Solar Elevation**: Grena/PSA algorithm for validating light sensors.
+---
 
-### 2. Connectivity Layer (`ha_client.py`)
-- **Protocol**: WebSocket (`ws://supervisor/core/websocket`).
-- **Resilience**: Infinite retry loop with exponential backoff (1s, 2s, 4s... 60s).
-- **Authentication**: Uses `SUPERVISOR_TOKEN` injected by the HA Supervisor.
+## Installation
 
-### 3. Logic Core
-- **BusLoadMonitor**: Atomic counter for bus traffic.
-- **AnomalyEngine**: Maintains rolling buffers (`deque`) for sensors and detects statistical outliers.
-- **DiagnosticsEngine**: Performs physics-based checks (e.g., Solar Elevation).
+1.  **Add Repository**:
+    -   Go to **Settings** > **Add-ons** > **Add-on Store**.
+    -   Click the **three dots** (top right) > **Repositories**.
+    -   Add this repository URL: `https://github.com/jangoachayan/KNX-Sentinel-Prototype1` (or your local path).
+2.  **Install**:
+    -   Find **KNX Sentinel** in the store.
+    -   Click **Install**.
+3.  **Start**:
+    -   Configure the add-on (see below).
+    -   Click **Start**.
 
-### 4. Egress Layer (`egress.py`)
-- **InfluxDB**: Uses Line Protocol over HTTP/S.
-- **MQTT**: Uses JSON payloads over TCP.
-- **Tagging**: Enforces `client_id` and `site_id` tagging on all metrics for multi-tenant segregation.
+---
 
-## Data Schema
+## Configuration
 
-### InfluxDB Line Protocol
-```text
-knx_metrics,client_id=c1,site_id=s1,metric_type=bus_load telegrams_per_min=42i <timestamp>
-knx_diagnostics,client_id=c1,site_id=s1,entity_id=sensor.temp,type=anomaly value=25.5,z_score=3.2 <timestamp>
+Configuration is handled via the **Configuration** tab in the add-on.
+
+### 1. Global Settings
+| Option | Description | Default |
+| :--- | :--- | :--- |
+| `client_id` | Unique identifier for this customer/gateway. | `customer_001` |
+| `site_id` | Unique identifier for this physical site. | `site_nyc_01` |
+| `mode` | Egress mode: `influxdb_cloud` or `mqtt`. | `influxdb_cloud` |
+| `autodiscovery` | Validates sensor data automatically using heuristics. | `true` |
+
+### 2. Egress Options
+
+#### InfluxDB (Cloud or OSS)
+Required if `mode` is set to `influxdb_cloud`.
+-   **host**: Full URL to your InfluxDB instance (e.g., `https://us-east-1-1.aws.cloud2.influxdata.com`).
+-   **token**: Your API Token with write access.
+-   **org**: Your Organization name.
+-   **bucket**: The target bucket for metrics.
+
+#### MQTT (Local Integration)
+Required if `mode` is set to `mqtt`.
+-   **broker**: IP address or hostname of your MQTT broker (e.g., `core-mosquitto` or `192.168.1.100`).
+-   **port**: MQTT Port (default `1883`).
+-   **topic_prefix**: Root topic for published messages (default `knx-monitor`).
+
+### 3. Anomaly Detection
+Enable or disable the intelligent monitoring engine.
+-   **enabled**: `true` or `false`.
+-   **sensors**: (Optional) List of specific entities to monitor with custom thresholds.
+
+```yaml
+anomaly_detection:
+  enabled: true
+  sensors:
+    - entity_id: sensor.kitchen_temp
+      method: z_score
+      threshold: 3.0
 ```
 
-### MQTT JSON Payload
-Topic: `knx-monitor/{site_id}/{measurement}`
-```json
-{
-  "measurement": "knx_metrics",
-  "tags": {
-    "client_id": "c1",
-    "site_id": "s1",
-    "metric_type": "bus_load"
-  },
-  "fields": {
-    "telegrams_per_min": 42
-  },
-  "timestamp": 1678900000
-}
-```
+---
+
+## Data Visualization
+
+### InfluxDB Data Schema
+Metrics are written to the `knx_metrics` and `knx_diagnostics` measurements.
+-   **Tags**: `client_id`, `site_id`, `metric_type`, `entity_id`.
+-   **Fields**: `telegrams_per_min`, `value`, `z_score`.
+
+### MQTT Topics
+Data is published to `knx-monitor/{site_id}/{measurement}`.
+-   **Payload**: JSON object containing tags, fields, and timestamp.
+
+---
+
+## Troubleshooting
+
+### "Unknown Error" during Installation
+If the installation fails with an unknown error, ensure you are running a supported architecture (aarch64/amd64) and that your Home Assistant Supervisor is up to date. We use `ghcr.io/home-assistant/{arch}-base-python:3.12-alpine3.20` base images.
+
+### Check Logs
+1.  Go to the **Log** tab in the add-on.
+2.  Look for "Connected to Home Assistant" to confirm successful startup.
+3.  Errors regarding "Connection refused" usually indicate incorrect MQTT broker IP or InfluxDB credentials.

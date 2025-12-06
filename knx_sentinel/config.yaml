@@ -1,5 +1,5 @@
 name: "KNX Sentinel"
-version: "1.1.1"
+version: "1.2.0"
 slug: "knx_sentinel"
 description: "Advanced KNX Diagnostics and Anomaly Detection Agent"
 url: "https://github.com/jangoachayan/KNX-Sentinel-Prototype1"
