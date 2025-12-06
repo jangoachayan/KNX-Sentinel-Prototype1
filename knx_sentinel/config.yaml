@@ -1,6 +1,8 @@
 name: "KNX Sentinel"
 version: "1.1.1"
+slug: "knx_sentinel"
 description: "Advanced KNX Diagnostics and Anomaly Detection Agent"
+url: "https://github.com/jangoachayan/KNX-Sentinel-Prototype1"
 arch:
   - aarch64
   - amd64
@@ -48,7 +50,7 @@ schema:
     sensors:
       - entity_id: str
         method: str
-        min?: float
-        max?: float
-        threshold?: float
+        min: "float?"
+        max: "float?"
+        threshold: "float?"
 init: false
