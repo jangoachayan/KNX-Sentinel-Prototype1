@@ -12,6 +12,11 @@ host_network: true
 hassio_api: true
 map:
   - "config:rw"
+ingress: true
+ingress_port: 8099
+panel_icon: "mdi:cctv"
+ports:
+  8099/tcp: 8099
 options:
   client_id: "customer_001"
   site_id: "site_nyc_01"

@@ -7,7 +7,9 @@ from knx_sentinel.ha_client import HAWebSocketClient
 from knx_sentinel.bus_monitor import BusLoadMonitor
 from knx_sentinel.anomaly_engine import AnomalyEngine
 from knx_sentinel.autoconfig import AutoConfigurator
+from knx_sentinel.autoconfig import AutoConfigurator
 from knx_sentinel.egress import InfluxDBProvider, MQTTProvider
+from knx_sentinel.web import WebServer
 import json
 
 # Configure logging
@@ -95,6 +97,7 @@ async def main():
     anomaly_engine = AnomalyEngine()
     client = HAWebSocketClient()
     autoconfig = AutoConfigurator(client)
+    web_server = WebServer(config)
     
     # Common Tags
     common_tags = {
@@ -148,6 +151,9 @@ async def main():
     # Start Client Task
     client_task = asyncio.create_task(client.start())
     
+    # Start Web Server
+    await web_server.start()
+
     # Start Aggregation Loop (Background Task)
     async def aggregation_loop():
         while not stop_event.is_set():
@@ -182,6 +188,7 @@ async def main():
     agg_task.cancel()
     if hasattr(egress, "stop"):
         await egress.stop()
+    await web_server.stop()
     await client.stop()
     try:
         await client_task
