@@ -30,9 +30,12 @@ Welcome to **KNX Sentinel**, an advanced diagnostics and anomaly detection agent
 
 ## Configuration
 
-Configuration is handled via the **Configuration** tab in the add-on.
+Configuration is handled via the **Configuration** tab in the add-on or via the **Sidebar** if enabled.
 
-### 1. Global Settings
+### 1. Sidebar Configuration
+You can open the web interface from the Home Assistant sidebar to modify client and site identifiers.
+
+### 2. Global Settings
 | Option | Description | Default |
 | :--- | :--- | :--- |
 | `client_id` | Unique identifier for this customer/gateway. | `customer_001` |
@@ -93,3 +96,6 @@ If the installation fails with an unknown error, ensure you are running a suppor
 1.  Go to the **Log** tab in the add-on.
 2.  Look for "Connected to Home Assistant" to confirm successful startup.
 3.  Errors regarding "Connection refused" usually indicate incorrect MQTT broker IP or InfluxDB credentials.
+
+---
+**Developer**: Manara Engineering / ATS

@@ -24,3 +24,6 @@ This repository is a **Home Assistant Add-on Repository**.
 ## Documentation
 
 Full documentation is available in the [DOCS.md](knx_sentinel/DOCS.md) file or within the **Documentation** tab of the add-on in Home Assistant.
+
+---
+**Developer**: Manara Engineering / ATS

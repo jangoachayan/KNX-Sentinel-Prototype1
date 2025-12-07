@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0
+-   **Feature**: Added Sidebar Configuration Page for easier addon customization.
+-   **Config**: Exposed Ingress port 8099.
+
 ## 1.2.0
 -   **Documentation**: Massive overhaul of user documentation (`DOCS.md`).
 -   **Fix**: Resolved "unknown error" build failures on Supervisor by defining compatible base images.
