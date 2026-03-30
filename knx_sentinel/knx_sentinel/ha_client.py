@@ -16,6 +16,7 @@ class HAWebSocketClient:
         self.ws = None
         self.event_callback = None
         self._reconnect_delay = 1
+        self.connected_event = asyncio.Event()
 
     def set_callback(self, callback):
         """Sets the callback function for incoming KNX events."""
@@ -43,6 +44,7 @@ class HAWebSocketClient:
                 _LOGGER.error(f"Unexpected error: {e}", exc_info=True)
             
             if self.running:
+                self.connected_event.clear()
                 _LOGGER.info(f"Reconnecting in {self._reconnect_delay}s...")
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(self._reconnect_delay * 2, 60)
@@ -94,6 +96,7 @@ class HAWebSocketClient:
              _LOGGER.error(f"Subscription failed: {msg}")
 
         _LOGGER.info("Subscribed to knx_event")
+        self.connected_event.set()
 
     async def _listen(self):
         """Listens for incoming messages."""

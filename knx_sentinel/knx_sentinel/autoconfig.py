@@ -10,13 +10,42 @@ class AutoConfigurator:
         """
         Queries HA Registry and returns a list of entities to monitor.
         """
-        # In a real implementation, this would call a WebSocket API.
-        # For now, we'll assume we can get a list via REST or WS.
-        # Since we don't have the full WS wrapper for registry yet, 
-        # we will mock the logic of parsing a registry list.
-        
-        # TODO: Implement actual registry fetch via ha_client
-        return []
+        if self.ha_client.ws is None:
+            _LOGGER.warning("HA WebSocket not connected; skipping entity discovery")
+            return []
+
+        try:
+            await self.ha_client.ws.send_json({
+                "id": 99,
+                "type": "config/entity_registry/list"
+            })
+
+            result_msg = None
+            async for msg in self.ha_client.ws:
+                from aiohttp import WSMsgType
+                import json as _json
+                if msg.type == WSMsgType.TEXT:
+                    data = _json.loads(msg.data)
+                    if data.get("id") == 99:
+                        result_msg = data
+                        break
+
+            if result_msg is None or not result_msg.get("success"):
+                _LOGGER.error(f"Entity registry fetch failed: {result_msg}")
+                return []
+
+            entities = []
+            for entry in result_msg.get("result", []):
+                profile = self.analyze_entity(entry)
+                if profile is not None:
+                    entities.append({"entity_id": entry["entity_id"], "profile": profile})
+
+            _LOGGER.info(f"Auto-discovered {len(entities)} KNX entities")
+            return entities
+
+        except Exception as e:
+            _LOGGER.error(f"Error during entity discovery: {e}")
+            return []
 
     @staticmethod
     def analyze_entity(entity_entry):

@@ -9,6 +9,7 @@ from knx_sentinel.anomaly_engine import AnomalyEngine
 from knx_sentinel.autoconfig import AutoConfigurator
 from knx_sentinel.egress import InfluxDBProvider, MQTTProvider
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -134,20 +135,30 @@ async def main():
                 await egress.send_metric("knx_diagnostics", tags, fields)
 
     client.set_callback(handle_event)
-    
+
     # Setup Signal Handling
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
-    
+
     def signal_handler():
         _LOGGER.info("Signal received, stopping...")
         stop_event.set()
-        
+
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, signal_handler)
-        
+
     # Start Client Task
     client_task = asyncio.create_task(client.start())
+
+    # Wait for HA connection then run auto-discovery
+    try:
+        await asyncio.wait_for(client.connected_event.wait(), timeout=10)
+        discovered = await autoconfig.discover_entities()
+        for item in discovered:
+            anomaly_engine.register_sensor(item["entity_id"], item["profile"])
+        _LOGGER.info(f"Auto-discovery complete: {len(discovered)} entities registered")
+    except asyncio.TimeoutError:
+        _LOGGER.warning("Timed out waiting for HA connection; skipping auto-discovery")
     
     # Start Aggregation Loop (Background Task)
     async def aggregation_loop():

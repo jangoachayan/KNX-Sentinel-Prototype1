@@ -54,15 +54,30 @@ class WebServer:
         try:
             data = await request.json()
             _LOGGER.info(f"Received config update: {data}")
-            # In a real add-on, we might write to /data/options.json or call HA Supervisor API
-            # For now, we update the in-memory config and acknowledge
-            
-            # Update specific keys
+
             for key in ['client_id', 'site_id']:
                 if key in data:
                     self.config[key] = data[key]
-            
-            return web.json_response({"status": "ok", "message": "Configuration updated (memory only)"})
+
+            options_path = "/data/options.json"
+            if os.path.exists(options_path):
+                try:
+                    with open(options_path, "r") as f:
+                        options = json.load(f)
+                    for key in ['client_id', 'site_id']:
+                        if key in data:
+                            options[key] = data[key]
+                    tmp_path = options_path + ".tmp"
+                    with open(tmp_path, "w") as f:
+                        json.dump(options, f, indent=2)
+                    os.replace(tmp_path, options_path)
+                    _LOGGER.info("Configuration persisted to /data/options.json")
+                except Exception as e:
+                    _LOGGER.error(f"Failed to persist config to file: {e}")
+            else:
+                _LOGGER.warning("/data/options.json not found; skipping file persistence")
+
+            return web.json_response({"status": "ok", "message": "Configuration updated and persisted"})
         except Exception as e:
             _LOGGER.error(f"Failed to update config: {e}")
             return web.json_response({"status": "error", "message": str(e)}, status=500)
