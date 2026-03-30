@@ -46,7 +46,8 @@ def load_config():
                         "broker": options.get("mqtt", {}).get("broker"),
                         "port": options.get("mqtt", {}).get("port", 1883),
                         "topic_prefix": options.get("mqtt", {}).get("topic_prefix", "knx")
-                    }
+                    },
+                    "anomaly_detection": options.get("anomaly_detection", {})
                 }
         except Exception as e:
             _LOGGER.error(f"Failed to load options.json: {e}")
@@ -67,7 +68,8 @@ def load_config():
                 "broker": os.getenv("MQTT_BROKER", "localhost"),
                 "port": int(os.getenv("MQTT_PORT", 1883)),
                 "topic_prefix": os.getenv("MQTT_PREFIX", "knx")
-            }
+            },
+            "anomaly_detection": {}
         }
     return config
 
@@ -98,6 +100,23 @@ async def main():
     anomaly_engine = AnomalyEngine()
     client = HAWebSocketClient()
     autoconfig = AutoConfigurator(client)
+
+    # Pre-register sensors from manual config (these take precedence over auto-discovery)
+    ad_config = config.get("anomaly_detection", {})
+    if ad_config.get("enabled", True):
+        for sensor in ad_config.get("sensors", []):
+            entity_id = sensor.get("entity_id")
+            if not entity_id:
+                continue
+            profile = {"method": sensor.get("method", "z_score")}
+            if "threshold" in sensor:
+                profile["threshold"] = sensor["threshold"]
+            if "min" in sensor:
+                profile["min"] = sensor["min"]
+            if "max" in sensor:
+                profile["max"] = sensor["max"]
+            anomaly_engine.register_sensor(entity_id, profile)
+            _LOGGER.info(f"Registered sensor from config: {entity_id} -> {profile}")
     
     # Common Tags
     common_tags = {
