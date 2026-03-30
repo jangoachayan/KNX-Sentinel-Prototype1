@@ -91,6 +91,7 @@ async def main():
             config["influxdb"]["org"],
             config["influxdb"]["bucket"]
         )
+        await egress.start()
 
     # Initialize Components
     bus_monitor = BusLoadMonitor()
