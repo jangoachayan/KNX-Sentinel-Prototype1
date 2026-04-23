@@ -4,9 +4,7 @@ import os
 import tempfile
 from unittest.mock import patch
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from web import WebServer
+from knx_sentinel.web import WebServer
 
 
 class TestWebServer(AioHTTPTestCase):
@@ -16,9 +14,7 @@ class TestWebServer(AioHTTPTestCase):
             "site_id": "test_site",
             "mode": "influxdb_cloud"
         }
-        import aiohttp.web_urldispatcher as _disp
-        with patch.object(_disp.UrlDispatcher, 'add_static', return_value=None):
-            server = WebServer(self.config)
+        server = WebServer(self.config)
         return server.app
 
     async def test_get_config(self):

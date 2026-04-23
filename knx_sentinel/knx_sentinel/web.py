@@ -1,0 +1,80 @@
+import asyncio
+import logging
+import json
+import os
+from aiohttp import web
+
+_LOGGER = logging.getLogger(__name__)
+
+class WebServer:
+    def __init__(self, config):
+        self.config = config
+        self.runner = None
+        self.site = None
+        self.app = web.Application()
+        self.setup_routes()
+
+    def setup_routes(self):
+        self.app.router.add_get('/', self.handle_index)
+        self.app.router.add_get('/api/config', self.handle_get_config)
+        self.app.router.add_post('/api/config', self.handle_update_config)
+        static_path = os.path.join(os.path.dirname(__file__), 'static')
+        if os.path.isdir(static_path):
+            self.app.router.add_static('/static', path=static_path, append_version=True)
+
+    async def start(self):
+        _LOGGER.info("Starting Web Server...")
+        self.runner = web.AppRunner(self.app)
+        await self.runner.setup()
+        port = 8099
+        self.site = web.TCPSite(self.runner, '0.0.0.0', port)
+        await self.site.start()
+        _LOGGER.info(f"Web Server started on port {port}")
+
+    async def stop(self):
+        _LOGGER.info("Stopping Web Server...")
+        if self.site:
+            await self.site.stop()
+        if self.runner:
+            await self.runner.cleanup()
+
+    async def handle_index(self, request):
+        template_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html')
+        if os.path.exists(template_path):
+            return web.FileResponse(template_path)
+        return web.Response(text="Configuration Page Not Found", status=404)
+
+    async def handle_get_config(self, request):
+        return web.json_response(self.config)
+
+    async def handle_update_config(self, request):
+        try:
+            data = await request.json()
+            _LOGGER.info(f"Received config update: {data}")
+
+            for key in ['client_id', 'site_id']:
+                if key in data:
+                    self.config[key] = data[key]
+
+            options_path = "/data/options.json"
+            if os.path.exists(options_path):
+                try:
+                    with open(options_path, "r") as f:
+                        options = json.load(f)
+                    for key in ['client_id', 'site_id']:
+                        if key in data:
+                            options[key] = data[key]
+                    tmp_path = options_path + ".tmp"
+                    with open(tmp_path, "w") as f:
+                        json.dump(options, f, indent=2)
+                    os.replace(tmp_path, options_path)
+                    _LOGGER.info("Configuration persisted to /data/options.json")
+                except Exception as e:
+                    _LOGGER.error(f"Failed to persist config to file: {e}")
+            else:
+                _LOGGER.warning("/data/options.json not found; skipping file persistence")
+
+            return web.json_response({"status": "ok", "message": "Configuration updated and persisted"})
+        except Exception as e:
+            _LOGGER.error(f"Failed to update config: {e}")
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
