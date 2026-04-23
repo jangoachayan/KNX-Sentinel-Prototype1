@@ -3,6 +3,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from knx_sentinel.anomaly_engine import AnomalyEngine
 from knx_sentinel.bus_monitor import BusLoadMonitor
+from knx_sentinel.diagnostics import DiagnosticsEngine
 from knx_sentinel.egress import InfluxDBProvider
 
 
@@ -127,6 +128,71 @@ class TestEventFlowIntegration(unittest.IsolatedAsyncioTestCase):
         second = await monitor.get_and_reset()
         self.assertEqual(first, 10)
         self.assertEqual(second, 0)
+
+    async def test_solar_check_sensor_routes_to_diagnostics(self):
+        engine = AnomalyEngine()
+        engine.register_sensor("sensor.knx_outdoor_lux", {"method": "solar_check"})
+        diag = DiagnosticsEngine(lat=40.71, lon=-74.00)
+
+        sent_metrics = []
+
+        async def fake_send(measurement, tags, fields, timestamp=None):
+            sent_metrics.append({"measurement": measurement, "tags": tags, "fields": fields})
+
+        egress = MagicMock()
+        egress.send_metric = fake_send
+        common_tags = {"client_id": "test", "site_id": "s1"}
+
+        # Simulate handle_event logic for a solar_check sensor
+        async def handle_solar_event(entity_id, value):
+            profile = engine.profiles.get(entity_id, {})
+            if profile.get("method") == "solar_check":
+                fault = diag.check_solar_sensor(entity_id, float(value))
+                if fault:
+                    tags = common_tags.copy()
+                    tags["entity_id"] = entity_id
+                    tags["type"] = "diagnostic"
+                    fields = {"lux": float(value), "solar_elevation": fault.get("elevation", 0.0)}
+                    await egress.send_metric("knx_diagnostics", tags, fields)
+
+        # Sun high, lux near-zero → should produce a fault
+        with patch('knx_sentinel.diagnostics.MathKernel.calculate_solar_elevation', return_value=45.0):
+            await handle_solar_event("sensor.knx_outdoor_lux", 2.0)
+
+        self.assertEqual(len(sent_metrics), 1)
+        self.assertEqual(sent_metrics[0]["measurement"], "knx_diagnostics")
+        self.assertEqual(sent_metrics[0]["tags"]["type"], "diagnostic")
+        self.assertAlmostEqual(sent_metrics[0]["fields"]["solar_elevation"], 45.0)
+        self.assertAlmostEqual(sent_metrics[0]["fields"]["lux"], 2.0)
+
+    async def test_solar_check_no_fault_when_sun_low(self):
+        engine = AnomalyEngine()
+        engine.register_sensor("sensor.knx_outdoor_lux", {"method": "solar_check"})
+        diag = DiagnosticsEngine(lat=40.71, lon=-74.00)
+
+        sent_metrics = []
+
+        async def fake_send(measurement, tags, fields, timestamp=None):
+            sent_metrics.append(measurement)
+
+        egress = MagicMock()
+        egress.send_metric = fake_send
+
+        with patch('knx_sentinel.diagnostics.MathKernel.calculate_solar_elevation', return_value=3.0):
+            profile = engine.profiles.get("sensor.knx_outdoor_lux", {})
+            fault = diag.check_solar_sensor("sensor.knx_outdoor_lux", 2.0)
+            # Sun below 10° threshold → no fault, nothing egressed
+            self.assertIsNone(fault)
+        self.assertEqual(len(sent_metrics), 0)
+
+    async def test_solar_check_sensor_skips_statistical_detection(self):
+        # Ensure solar_check sensors don't also go through z_score path
+        engine = AnomalyEngine()
+        engine.register_sensor("sensor.knx_outdoor_lux", {"method": "solar_check"})
+
+        # process_value for solar_check falls through to None (no statistical method)
+        result = engine.process_value("sensor.knx_outdoor_lux", 999.0)
+        self.assertIsNone(result)
 
 
 if __name__ == '__main__':

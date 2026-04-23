@@ -23,6 +23,8 @@ options:
   mode: "influxdb_cloud"
   autodiscovery: true
   exclude_entities: []
+  latitude: 0.0
+  longitude: 0.0
   influxdb:
     host: "https://us-east-1-1.aws.cloud2.influxdata.com"
     token: "my-token"
@@ -41,6 +43,8 @@ schema:
   mode: str
   autodiscovery: bool
   exclude_entities: [str]
+  latitude: "float?"
+  longitude: "float?"
   influxdb:
     host: url
     token: str

@@ -7,6 +7,7 @@ from knx_sentinel.ha_client import HAWebSocketClient
 from knx_sentinel.bus_monitor import BusLoadMonitor
 from knx_sentinel.anomaly_engine import AnomalyEngine
 from knx_sentinel.autoconfig import AutoConfigurator
+from knx_sentinel.diagnostics import DiagnosticsEngine
 from knx_sentinel.egress import InfluxDBProvider, MQTTProvider
 
 
@@ -47,7 +48,9 @@ def load_config():
                         "port": options.get("mqtt", {}).get("port", 1883),
                         "topic_prefix": options.get("mqtt", {}).get("topic_prefix", "knx")
                     },
-                    "anomaly_detection": options.get("anomaly_detection", {})
+                    "anomaly_detection": options.get("anomaly_detection", {}),
+                    "lat": float(options.get("latitude", 0.0)),
+                    "lon": float(options.get("longitude", 0.0)),
                 }
         except Exception as e:
             _LOGGER.error(f"Failed to load options.json: {e}")
@@ -69,7 +72,9 @@ def load_config():
                 "port": int(os.getenv("MQTT_PORT", 1883)),
                 "topic_prefix": os.getenv("MQTT_PREFIX", "knx")
             },
-            "anomaly_detection": {}
+            "anomaly_detection": {},
+            "lat": float(os.getenv("LATITUDE", 0.0)),
+            "lon": float(os.getenv("LONGITUDE", 0.0)),
         }
     return config
 
@@ -98,8 +103,11 @@ async def main():
     # Initialize Components
     bus_monitor = BusLoadMonitor()
     anomaly_engine = AnomalyEngine()
+    diagnostics_engine = DiagnosticsEngine(lat=config["lat"], lon=config["lon"])
     client = HAWebSocketClient()
     autoconfig = AutoConfigurator(client)
+    if config["lat"] == 0.0 and config["lon"] == 0.0:
+        _LOGGER.warning("Latitude/longitude not configured; solar diagnostics will use 0,0 (equator)")
 
     # Pre-register sensors from manual config (these take precedence over auto-discovery)
     ad_config = config.get("anomaly_detection", {})
@@ -128,31 +136,46 @@ async def main():
     async def handle_event(event):
         # 1. Bus Load Counting
         await bus_monitor.process_event(event)
-        
-        # 2. Anomaly Detection
+
+        # 2. Sensor Processing
         data = event.get("data", {})
-        destination = data.get("destination") # Group Address
+        destination = data.get("destination")  # Group Address
         value = data.get("value")
-        
+
         if destination and value is not None:
-            # Mock mapping: use destination as entity_id for now
             entity_id = f"sensor.knx_{destination.replace('/', '_')}"
-            
-            # Auto-register if new (simple heuristic)
             anomaly_engine.register_sensor(entity_id)
-            
-            anomaly = anomaly_engine.process_value(entity_id, value)
-            if anomaly:
-                # Egress Anomaly
-                tags = common_tags.copy()
-                tags["entity_id"] = entity_id
-                tags["type"] = "anomaly"
-                fields = {
-                    "value": float(value),
-                    "z_score": anomaly.get("z_score", 0.0),
-                    "threshold": anomaly.get("threshold", 0.0)
-                }
-                await egress.send_metric("knx_diagnostics", tags, fields)
+
+            profile = anomaly_engine.profiles.get(entity_id, {})
+
+            if profile.get("method") == "solar_check":
+                # Route illuminance sensors to physics-based diagnostics
+                try:
+                    fault = diagnostics_engine.check_solar_sensor(entity_id, float(value))
+                    if fault:
+                        tags = common_tags.copy()
+                        tags["entity_id"] = entity_id
+                        tags["type"] = "diagnostic"
+                        fields = {
+                            "lux": float(value),
+                            "solar_elevation": fault.get("elevation", 0.0),
+                        }
+                        await egress.send_metric("knx_diagnostics", tags, fields)
+                except Exception as e:
+                    _LOGGER.error(f"Solar check error for {entity_id}: {e}")
+            else:
+                # Statistical anomaly detection
+                anomaly = anomaly_engine.process_value(entity_id, value)
+                if anomaly:
+                    tags = common_tags.copy()
+                    tags["entity_id"] = entity_id
+                    tags["type"] = "anomaly"
+                    fields = {
+                        "value": float(value),
+                        "z_score": anomaly.get("z_score", 0.0),
+                        "threshold": anomaly.get("threshold", 0.0),
+                    }
+                    await egress.send_metric("knx_diagnostics", tags, fields)
 
     client.set_callback(handle_event)
 
